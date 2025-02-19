@@ -11,13 +11,13 @@ from dateutil import parser
 class ConversationSpider(scrapy.Spider):
     name = "conversation"
     start_urls = [
-        'https://theconversation.com/au/arts',
+        # 'https://theconversation.com/au/arts',
         # 'https://theconversation.com/au/books',
-        # 'https://theconversation.com/au/business',
+        'https://theconversation.com/au/business',
         # 'https://theconversation.com/au/education',
-        # 'https://theconversation.com/au/environment',
+        'https://theconversation.com/au/environment',
         # 'https://theconversation.com/au/health',
-        # 'https://theconversation.com/au/politics',
+        'https://theconversation.com/au/politics',
         # 'https://theconversation.com/au/technology',
     ]
 
