@@ -3,26 +3,41 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including cron
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
+# Copy scrapy requirements and install Python dependencies
+COPY scrapy/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/output /app/notebooks
+RUN mkdir -p /data /notebooks /logs
+
+# Make scripts executable
+RUN chmod +x /app/scrapy/scripts/scrape.sh
+RUN chmod +x /app/scrapy/scripts/ingest.sh
+
+# Create CRON log file
+RUN touch /logs/cron.log
 
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV ELASTICSEARCH_HOST=elasticsearch
+ENV ELASTICSEARCH_PORT=9200
 
-# Default command (can be overridden in docker-compose)
-CMD ["tail", "-f", "/dev/null"]
+# Copy CRON configuration
+COPY scrapy/cron/crontab /etc/cron.d/scrapy-jobs
+RUN chmod 0644 /etc/cron.d/scrapy-jobs
+RUN crontab /etc/cron.d/scrapy-jobs
+
+# Default command - start CRON and monitor logs
+CMD ["sh", "-c", "service cron start && tail -f /app/logs/cron.log"]

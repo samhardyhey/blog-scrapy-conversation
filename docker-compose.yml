@@ -30,8 +30,8 @@ services:
     container_name: scrapy
     volumes:
       - ./conversation:/app/conversation
-      - ./output:/app/output
-      - ./notebooks:/app/notebooks
+      - ./data:/data
+      - ./notebooks:/notebooks
     working_dir: /app
     networks:
       - app-network
@@ -52,7 +52,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./output:/app/output
+      - ./api:/app/api
+      - ./data:/data
     networks:
       - app-network
     depends_on:

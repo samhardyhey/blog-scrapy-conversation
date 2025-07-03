@@ -1,0 +1,15 @@
+# Scrapy Service Requirements
+
+# Core scraping
+Scrapy==2.6.2
+python-dateutil==2.8.2
+
+# Data processing
+pandas==1.4.3
+tqdm==4.64.0
+
+# Elasticsearch integration
+elasticsearch==8.11.0
+
+# Utilities
+clean-py==0.5
