@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Elasticsearch container
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Scrapy container
+  scrapy:
+    build:
+      context: .
+      dockerfile: Dockerfile.scrapy
+    container_name: scrapy
+    volumes:
+      - ./conversation:/app/conversation
+      - ./output:/app/output
+      - ./notebooks:/app/notebooks
+    working_dir: /app
+    networks:
+      - app-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    command: tail -f /dev/null  # Keep container running
+
+  # API container
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+    networks:
+      - app-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    command: tail -f /dev/null  # Keep container running
+
+volumes:
+  elasticsearch_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
