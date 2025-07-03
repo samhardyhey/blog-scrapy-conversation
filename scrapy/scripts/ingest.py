@@ -4,31 +4,35 @@ Elasticsearch Ingestion Script
 Ingests articles from CSV files to Elasticsearch
 """
 
+import argparse
+import logging
 import os
 import sys
-import logging
 from datetime import datetime
+
 import pandas as pd
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.exceptions import ConnectionError
-import argparse
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 def check_connection(es):
     """Check Elasticsearch connection."""
     try:
         info = es.info()
-        logger.info(f"Connected to Elasticsearch {info.get('version', {}).get('number', 'unknown')}")
+        logger.info(
+            f"Connected to Elasticsearch {info.get('version', {}).get('number', 'unknown')}"
+        )
         return True
     except ConnectionError as e:
         logger.error(f"Failed to connect to Elasticsearch: {e}")
         return False
+
 
 def create_index(es, index_name="articles"):
     """Create articles index with mapping."""
@@ -49,13 +53,10 @@ def create_index(es, index_name="articles"):
                     "content_length": {"type": "integer"},
                     "word_count": {"type": "integer"},
                     "ingested_at": {"type": "date"},
-                    "source_file": {"type": "keyword"}
+                    "source_file": {"type": "keyword"},
                 }
             },
-            "settings": {
-                "number_of_shards": 1,
-                "number_of_replicas": 0
-            }
+            "settings": {"number_of_shards": 1, "number_of_replicas": 0},
         }
 
         es.indices.create(index=index_name, body=mapping)
@@ -65,6 +66,7 @@ def create_index(es, index_name="articles"):
     except Exception as e:
         logger.error(f"Failed to create index: {e}")
         return False
+
 
 def clean_article(row):
     """Clean article data."""
@@ -76,14 +78,16 @@ def clean_article(row):
             "url": str(row.get("url", "")).strip(),
             "topics": str(row.get("topics", "")).strip(),
             "ingested_at": datetime.now().isoformat(),
-            "source_file": row.get("_source_file", "unknown")
+            "source_file": row.get("_source_file", "unknown"),
         }
 
         # Parse published date
         published = row.get("published")
         if pd.notna(published):
             try:
-                article["published"] = published if isinstance(published, str) else published.isoformat()
+                article["published"] = (
+                    published if isinstance(published, str) else published.isoformat()
+                )
             except:
                 article["published"] = None
         else:
@@ -95,7 +99,9 @@ def clean_article(row):
 
         # Clean topics
         if article["topics"]:
-            topics = [topic.strip() for topic in article["topics"].split("|") if topic.strip()]
+            topics = [
+                topic.strip() for topic in article["topics"].split("|") if topic.strip()
+            ]
             article["topics"] = "|".join(topics)
 
         return article
@@ -103,6 +109,7 @@ def clean_article(row):
     except Exception as e:
         logger.error(f"Error cleaning article: {e}")
         return None
+
 
 def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
     """Ingest articles from CSV file."""
@@ -115,16 +122,13 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
 
         total_ingested = 0
         for i in range(0, len(df), batch_size):
-            batch = df.iloc[i:i + batch_size]
+            batch = df.iloc[i : i + batch_size]
 
             actions = []
             for _, row in batch.iterrows():
                 article = clean_article(row)
                 if article:
-                    actions.append({
-                        "_index": index_name,
-                        "_source": article
-                    })
+                    actions.append({"_index": index_name, "_source": article})
 
             if actions:
                 try:
@@ -145,6 +149,7 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
     except Exception as e:
         logger.error(f"Error ingesting {csv_path}: {e}")
         return 0
+
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest articles to Elasticsearch")
@@ -172,7 +177,7 @@ def main():
         logger.error(f"Output directory does not exist: {output_path}")
         sys.exit(1)
 
-    csv_files = [f for f in os.listdir(output_path) if f.endswith('.csv')]
+    csv_files = [f for f in os.listdir(output_path) if f.endswith(".csv")]
     if not csv_files:
         logger.warning(f"No CSV files found in {output_path}")
         return
@@ -185,6 +190,7 @@ def main():
         total_ingested += ingested
 
     logger.info(f"Total articles ingested: {total_ingested}")
+
 
 if __name__ == "__main__":
     main()
