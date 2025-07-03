@@ -29,7 +29,7 @@ services:
       dockerfile: Dockerfile.scrapy
     container_name: scrapy
     volumes:
-      - ./conversation:/app/conversation
+      - ./scrapy:/app
       - ./data:/data
       - ./notebooks:/notebooks
     working_dir: /app
@@ -52,7 +52,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./api:/app/api
+      - ./api:/app
       - ./data:/data
     networks:
       - app-network

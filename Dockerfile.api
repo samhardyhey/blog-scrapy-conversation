@@ -15,7 +15,7 @@ COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
-COPY . .
+COPY api/ .
 
 # Set environment variables
 ENV PYTHONPATH=/app

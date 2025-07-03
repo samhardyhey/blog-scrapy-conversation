@@ -37,3 +37,9 @@ python api/main.py
 - 📤 `output/` # Scraped data
 - 🔧 `api/` # Search API
 - 📝 `requirements.txt` # Dependencies
+
+## TODO
+- integration tests/basic functionality
+- unit tests/test suite
+- CI/CD
+- terraform/aws K8s

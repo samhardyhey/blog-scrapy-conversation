@@ -16,7 +16,7 @@ COPY scrapy/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
-COPY . .
+COPY scrapy/ .
 
 # Create necessary directories
 RUN mkdir -p /data /notebooks /logs

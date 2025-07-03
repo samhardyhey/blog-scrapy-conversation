@@ -17,7 +17,7 @@ NEWSPIDER_MODULE = "conversation.spiders"
 # USER_AGENT = 'conversation (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 # CONCURRENT_REQUESTS = 32
@@ -65,6 +65,17 @@ COOKIES_ENABLED = False
 # ITEM_PIPELINES = {
 #    'conversation.pipelines.ConversationPipeline': 300,
 # }
+
+# CSV Export Settings
+FEEDS = {
+    '/data/conversation_articles_%(time)s.csv': {
+        'format': 'csv',
+        'encoding': 'utf8',
+        'store_empty': False,
+        'fields': ['author', 'article_title', 'article', 'published', 'url', 'topics'],
+        'overwrite': True,
+    }
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
