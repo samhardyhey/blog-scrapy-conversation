@@ -1,6 +1,7 @@
-import scrapy
 from bs4 import BeautifulSoup
 from dateutil import parser
+
+import scrapy
 
 # todo
 # paginated article listing - using /articles suffix
