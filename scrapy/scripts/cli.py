@@ -4,12 +4,9 @@ Blog Scraper CLI
 A Typer CLI application for managing articles
 """
 
-import hashlib
 import os
 import re
-import sys
 from datetime import datetime
-from typing import Optional
 
 import pandas as pd
 import requests
@@ -114,7 +111,7 @@ def clean_article(row):
 def has_date_in_filename(filename: str) -> bool:
     """Check if filename contains a year-month-day datestamp."""
     # Pattern to match YYYY-MM-DD format in filename
-    date_pattern = r'\d{4}-\d{2}-\d{2}'
+    date_pattern = r"\d{4}-\d{2}-\d{2}"
     return bool(re.search(date_pattern, filename))
 
 
@@ -147,8 +144,7 @@ def ingest_csv(api_url: str, csv_path: str, batch_size: int = 100) -> int:
                 try:
                     # Use bulk-upsert API endpoint
                     response = requests.post(
-                        f"{api_url}/articles/bulk-upsert",
-                        json=articles_to_process
+                        f"{api_url}/articles/bulk-upsert", json=articles_to_process
                     )
 
                     if response.status_code == 200:
@@ -166,27 +162,38 @@ def ingest_csv(api_url: str, csv_path: str, batch_size: int = 100) -> int:
                                 f"Batch {i//batch_size + 1}: {result.get('errors', 0)} failed"
                             )
                     else:
-                        logger.error(f"Batch {i//batch_size + 1} failed: {response.status_code} - {response.text}")
+                        logger.error(
+                            f"Batch {i//batch_size + 1} failed: {response.status_code} - {response.text}"
+                        )
 
                 except Exception as e:
                     logger.error(f"Batch {i//batch_size + 1} error: {e}")
                     # Try individual upsert for debugging
-                    for article in articles_to_process[:3]:  # Try first 3 articles individually
+                    for article in articles_to_process[
+                        :3
+                    ]:  # Try first 3 articles individually
                         try:
                             response = requests.post(
-                                f"{api_url}/articles/upsert",
-                                json=article
+                                f"{api_url}/articles/upsert", json=article
                             )
                             if response.status_code == 200:
                                 result = response.json()
-                                logger.info(f"Individual upsert success for: {article.get('article_title', 'NO_TITLE')} - {result.get('action')}")
+                                logger.info(
+                                    f"Individual upsert success for: {article.get('article_title', 'NO_TITLE')} - {result.get('action')}"
+                                )
                             else:
-                                logger.error(f"Individual upsert failed: {response.status_code} - {response.text}")
+                                logger.error(
+                                    f"Individual upsert failed: {response.status_code} - {response.text}"
+                                )
                         except Exception as individual_error:
-                            logger.error(f"Individual upsert failed: {individual_error}")
+                            logger.error(
+                                f"Individual upsert failed: {individual_error}"
+                            )
                     continue
 
-        logger.info(f"Processed {total_processed} articles from {csv_path} ({total_created} created, {total_updated} updated)")
+        logger.info(
+            f"Processed {total_processed} articles from {csv_path} ({total_created} created, {total_updated} updated)"
+        )
         return total_processed
 
     except Exception as e:
@@ -197,17 +204,12 @@ def ingest_csv(api_url: str, csv_path: str, batch_size: int = 100) -> int:
 @app.command()
 def ingest(
     api_url: str = typer.Option(
-        default=os.getenv("API_URL", "http://localhost:8000"),
-        help="API base URL"
+        default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL"
     ),
     output_dir: str = typer.Option(
-        default="/data",
-        help="Output directory containing CSV files"
+        default="/data", help="Output directory containing CSV files"
     ),
-    batch_size: int = typer.Option(
-        default=100,
-        help="Batch size for processing"
-    ),
+    batch_size: int = typer.Option(default=100, help="Batch size for processing"),
 ):
     """Ingest articles from CSV files with date in filename."""
     # Check API connection
@@ -244,12 +246,10 @@ def ingest(
 @app.command()
 def delete_all(
     api_url: str = typer.Option(
-        default=os.getenv("API_URL", "http://localhost:8000"),
-        help="API base URL"
+        default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL"
     ),
     confirm: bool = typer.Option(
-        default=False,
-        help="Confirm deletion without prompting"
+        default=False, help="Confirm deletion without prompting"
     ),
 ):
     """Delete all articles from the index."""
@@ -277,7 +277,9 @@ def delete_all(
 
         # Confirm deletion
         if not confirm:
-            if not typer.confirm(f"Are you sure you want to delete all {total_articles} articles?"):
+            if not typer.confirm(
+                f"Are you sure you want to delete all {total_articles} articles?"
+            ):
                 logger.info("Deletion cancelled")
                 return
 
@@ -286,25 +288,34 @@ def delete_all(
         batch_size = 100
 
         for i in range(0, len(articles), batch_size):
-            batch = articles[i:i + batch_size]
+            batch = articles[i : i + batch_size]
 
             for article in batch:
                 try:
                     article_id = article.get("id")
                     if article_id:
-                        delete_response = requests.delete(f"{api_url}/articles/{article_id}")
+                        delete_response = requests.delete(
+                            f"{api_url}/articles/{article_id}"
+                        )
                         if delete_response.status_code == 200:
                             deleted_count += 1
-                            if deleted_count % 10 == 0:  # Log progress every 10 deletions
+                            if (
+                                deleted_count % 10 == 0
+                            ):  # Log progress every 10 deletions
                                 logger.info(f"Deleted {deleted_count} articles...")
                         else:
-                            logger.warning(f"Failed to delete article {article_id}: {delete_response.status_code}")
+                            logger.warning(
+                                f"Failed to delete article {article_id}: {delete_response.status_code}"
+                            )
                 except Exception as e:
                     logger.error(f"Error deleting article: {e}")
 
             # If we have more articles to fetch, get the next batch
             if i + batch_size >= len(articles) and deleted_count < total_articles:
-                response = requests.get(f"{api_url}/articles", params={"limit": 10000, "offset": len(articles)})
+                response = requests.get(
+                    f"{api_url}/articles",
+                    params={"limit": 10000, "offset": len(articles)},
+                )
                 if response.status_code == 200:
                     data = response.json()
                     articles.extend(data.get("articles", []))

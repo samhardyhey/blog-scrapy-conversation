@@ -232,7 +232,8 @@ async def create_article(article: Dict[str, Any]):
     try:
         # Generate hash-based ID from article title
         import hashlib
-        article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+
+        article_id = hashlib.md5(article["article_title"].encode("utf-8")).hexdigest()
         response = es.index(index="articles", id=article_id, body=article)
         return {
             "id": response["_id"],
@@ -427,8 +428,13 @@ async def bulk_create_articles(articles: List[Dict[str, Any]]):
         for article in articles:
             # Generate hash-based ID from article title
             import hashlib
-            article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
-            bulk_data.extend([{"index": {"_index": "articles", "_id": article_id}}, article])
+
+            article_id = hashlib.md5(
+                article["article_title"].encode("utf-8")
+            ).hexdigest()
+            bulk_data.extend(
+                [{"index": {"_index": "articles", "_id": article_id}}, article]
+            )
 
         response = es.bulk(body=bulk_data)
 
@@ -491,22 +497,19 @@ async def upsert_article(article: Dict[str, Any]):
     try:
         # Generate hash-based ID from article title
         import hashlib
-        article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+
+        article_id = hashlib.md5(article["article_title"].encode("utf-8")).hexdigest()
 
         # Check if article exists
         try:
             existing = es.get(index="articles", id=article_id)
             # Article exists, update it
-            response = es.update(
-                index="articles",
-                id=article_id,
-                body={"doc": article}
-            )
+            response = es.update(index="articles", id=article_id, body={"doc": article})
             return {
                 "id": article_id,
                 "result": response["result"],
                 "message": "Article updated successfully",
-                "action": "updated"
+                "action": "updated",
             }
         except:
             # Article doesn't exist, create it
@@ -515,7 +518,7 @@ async def upsert_article(article: Dict[str, Any]):
                 "id": article_id,
                 "result": response["result"],
                 "message": "Article created successfully",
-                "action": "created"
+                "action": "created",
             }
     except Exception as e:
         raise HTTPException(
@@ -534,8 +537,13 @@ async def bulk_upsert_articles(articles: List[Dict[str, Any]]):
         for article in articles:
             # Generate hash-based ID from article title
             import hashlib
-            article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
-            bulk_data.extend([{"index": {"_index": "articles", "_id": article_id}}, article])
+
+            article_id = hashlib.md5(
+                article["article_title"].encode("utf-8")
+            ).hexdigest()
+            bulk_data.extend(
+                [{"index": {"_index": "articles", "_id": article_id}}, article]
+            )
 
         response = es.bulk(body=bulk_data)
 
@@ -568,7 +576,9 @@ async def bulk_upsert_articles(articles: List[Dict[str, Any]]):
             "message": f"Successfully processed {len(articles)} articles ({created} created, {updated} updated)",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Bulk upsert operation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Bulk upsert operation failed: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
