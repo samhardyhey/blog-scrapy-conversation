@@ -16,7 +16,7 @@ echo "📥 Running ingestion..."
 cd /app
 
 # Run the Python ingestion script
-python /app/scrapy/scripts/ingest.py \
+python /app/scripts/ingest.py \
     --host "$ELASTICSEARCH_HOST" \
     --port "$ELASTICSEARCH_PORT" \
     --output-dir "$OUTPUT_DIR"

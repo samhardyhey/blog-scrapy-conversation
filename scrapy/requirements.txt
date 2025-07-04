@@ -1,20 +1,6 @@
-# Scrapy Service Requirements
-
-# Core scraping
-Scrapy-2.13.3
-# Scrapy==2.6.2
+Scrapy==2.13.3
 python-dateutil==2.8.2
-
-# Data processing
-pandas==1.4.3
-tqdm==4.64.0
-
-# Elasticsearch integration
+pandas==2.1.4
+numpy==1.24.3
 elasticsearch==8.11.0
-
-# Utilities
-clean-py==0.5
-
-# Added from the code block
-# pyOpenSSL==22.0.0
-# cryptography==38.0.4
+loguru==0.7.3

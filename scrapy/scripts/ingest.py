@@ -13,12 +13,7 @@ from datetime import datetime
 import pandas as pd
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.exceptions import ConnectionError
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def check_connection(es):
@@ -50,6 +45,7 @@ def create_index(es, index_name="articles"):
                     "published": {"type": "date"},
                     "url": {"type": "keyword"},
                     "topics": {"type": "text"},
+                    "source_section": {"type": "keyword"},
                     "content_length": {"type": "integer"},
                     "word_count": {"type": "integer"},
                     "ingested_at": {"type": "date"},
@@ -77,6 +73,7 @@ def clean_article(row):
             "article": str(row.get("article", "")).strip(),
             "url": str(row.get("url", "")).strip(),
             "topics": str(row.get("topics", "")).strip(),
+            "source_section": str(row.get("source_section", "")).strip(),
             "ingested_at": datetime.now().isoformat(),
             "source_file": row.get("_source_file", "unknown"),
         }
@@ -85,13 +82,35 @@ def clean_article(row):
         published = row.get("published")
         if pd.notna(published):
             try:
-                article["published"] = (
-                    published if isinstance(published, str) else published.isoformat()
-                )
-            except:
+                if isinstance(published, str):
+                    # Convert string date to ISO format
+                    try:
+                        # Try to parse the date string
+                        if ' ' in published:
+                            # Format like "2025-07-03 15:00:00"
+                            dt = datetime.strptime(published, "%Y-%m-%d %H:%M:%S")
+                        else:
+                            # Format like "2025-07-03"
+                            dt = datetime.strptime(published, "%Y-%m-%d")
+                        article["published"] = dt.isoformat()
+                    except ValueError:
+                        # If parsing fails, try pandas to_datetime
+                        dt = pd.to_datetime(published)
+                        article["published"] = dt.isoformat()
+                else:
+                    # If it's already a datetime object
+                    article["published"] = published.isoformat()
+            except Exception as e:
+                logger.warning(f"Failed to parse date '{published}' for URL {article.get('url', 'NO_URL')}: {e}")
                 article["published"] = None
         else:
             article["published"] = None
+
+        # Truncate very long articles to prevent indexing issues
+        max_article_length = 10000  # Limit to 10k characters
+        if len(article["article"]) > max_article_length:
+            article["article"] = article["article"][:max_article_length] + "... [truncated]"
+            logger.warning(f"Truncated article for URL: {article['url']}")
 
         # Calculate metrics
         article["content_length"] = len(article["article"])
@@ -104,11 +123,37 @@ def clean_article(row):
             ]
             article["topics"] = "|".join(topics)
 
+        # Validate required fields
+        if not article["url"] or not article["article_title"]:
+            logger.warning(f"Skipping article with missing URL or title: {article.get('url', 'NO_URL')}")
+            return None
+
         return article
 
     except Exception as e:
         logger.error(f"Error cleaning article: {e}")
         return None
+
+
+def check_existing_urls(es, index_name, urls):
+    """Check which URLs already exist in the index."""
+    try:
+        # Create a query to check for existing URLs
+        query = {
+            "query": {
+                "terms": {
+                    "url": urls
+                }
+            },
+            "_source": ["url"]
+        }
+        
+        response = es.search(index=index_name, body=query, size=10000)
+        existing_urls = {hit["_source"]["url"] for hit in response["hits"]["hits"]}
+        return existing_urls
+    except Exception as e:
+        logger.error(f"Error checking existing URLs: {e}")
+        return set()
 
 
 def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
@@ -120,6 +165,11 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
 
         logger.info(f"Found {len(df)} articles")
 
+        # Check for existing URLs to prevent duplicates
+        urls = df["url"].dropna().tolist()
+        existing_urls = check_existing_urls(es, index_name, urls)
+        logger.info(f"Found {len(existing_urls)} existing URLs, will skip duplicates")
+
         total_ingested = 0
         for i in range(0, len(df), batch_size):
             batch = df.iloc[i : i + batch_size]
@@ -127,20 +177,35 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
             actions = []
             for _, row in batch.iterrows():
                 article = clean_article(row)
-                if article:
-                    actions.append({"_index": index_name, "_source": article})
+                if article and article["url"] not in existing_urls:
+                    # Use URL as document ID to prevent duplicates
+                    actions.append({
+                        "_index": index_name,
+                        "_id": article["url"],  # Use URL as document ID
+                        "_source": article
+                    })
 
             if actions:
                 try:
-                    success, failed = helpers.bulk(es, actions, stats_only=True)
+                    # Use bulk with detailed error reporting
+                    success, errors = helpers.bulk(es, actions, stats_only=False, raise_on_error=False)
                     total_ingested += success
-                    logger.info(f"Batch {i//batch_size + 1}: {success} articles")
+                    logger.info(f"Batch {i//batch_size + 1}: {success} articles ingested")
 
-                    if failed > 0:
-                        logger.warning(f"Batch {i//batch_size + 1}: {failed} failed")
+                    if errors:
+                        logger.warning(f"Batch {i//batch_size + 1}: {len(errors)} failed")
+                        for error in errors[:5]:  # Log first 5 errors
+                            logger.error(f"Bulk error: {error}")
 
                 except Exception as e:
                     logger.error(f"Batch {i//batch_size + 1} error: {e}")
+                    # Try individual indexing for debugging
+                    for action in actions[:3]:  # Try first 3 actions individually
+                        try:
+                            es.index(index=action["_index"], id=action["_id"], body=action["_source"])
+                            logger.info(f"Individual index success for: {action['_id']}")
+                        except Exception as individual_error:
+                            logger.error(f"Individual index failed for {action['_id']}: {individual_error}")
                     continue
 
         logger.info(f"Ingested {total_ingested} articles from {csv_path}")
