@@ -5,6 +5,7 @@ x-common-env: &common-env
   ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:-elasticsearch}
   ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
   ENV: ${ENV:-development}
+  API_URL: ${API_URL:-http://api:8000}
 
 services:
   # Elasticsearch container
@@ -66,7 +67,7 @@ services:
         condition: service_healthy
     environment:
       <<: *common-env
-    command: tail -f /dev/null  # Keep container running
+    command: python main.py
 
 volumes:
   elasticsearch_data:

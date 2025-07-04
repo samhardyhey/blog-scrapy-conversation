@@ -11,7 +11,7 @@ build: ## Build all Docker containers
 
 # Start all containers in detached mode
 up-dev: ## Start all containers in detached mode
-	docker-compose -f docker-compose.yml up -d
+	docker-compose -f docker-compose.yml up -d --force-recreate
 
 # Stop all containers
 down-dev: ## Stop all containers

@@ -1,6 +1,3 @@
-# Scrapy and Ingestion CRON Jobs
-# Run daily at 8:00 AM
-
 # Run Scrapy spider at 8:00 AM
 0 8 * * * root /app/scrapy/scripts/scrape.sh >> /app/logs/cron.log 2>&1
 

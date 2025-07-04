@@ -230,7 +230,10 @@ async def get_related_articles(
 async def create_article(article: Dict[str, Any]):
     """Create a new article in Elasticsearch"""
     try:
-        response = es.index(index="articles", body=article)
+        # Generate hash-based ID from article title
+        import hashlib
+        article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+        response = es.index(index="articles", id=article_id, body=article)
         return {
             "id": response["_id"],
             "result": response["result"],
@@ -422,7 +425,10 @@ async def bulk_create_articles(articles: List[Dict[str, Any]]):
 
         bulk_data = []
         for article in articles:
-            bulk_data.extend([{"index": {"_index": "articles"}}, article])
+            # Generate hash-based ID from article title
+            import hashlib
+            article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+            bulk_data.extend([{"index": {"_index": "articles", "_id": article_id}}, article])
 
         response = es.bulk(body=bulk_data)
 

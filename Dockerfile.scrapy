@@ -19,11 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scrapy/ .
 
 # Create necessary directories
-RUN mkdir -p /data /notebooks /logss
+RUN mkdir -p /data /logs
 
 # Make scripts executable
-RUN chmod +x /app/scrapy/scripts/scrape.sh
-RUN chmod +x /app/scrapy/scripts/ingest.sh
+RUN chmod +x /app/scripts/scrape.sh
+RUN chmod +x /app/scripts/ingest.sh
 
 # Create CRON log file
 RUN touch /logs/cron.log

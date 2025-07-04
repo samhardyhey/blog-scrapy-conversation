@@ -1,65 +1,33 @@
 #!/usr/bin/env python3
 """
-Elasticsearch Ingestion Script
-Ingests articles from CSV files to Elasticsearch
+API Ingestion Script
+Ingests articles from CSV files using the API
 """
 
 import argparse
+import hashlib
 import os
+import re
 import sys
 from datetime import datetime
 
 import pandas as pd
-from elasticsearch import Elasticsearch, helpers
-from elasticsearch.exceptions import ConnectionError
+import requests
 from loguru import logger
 
 
-def check_connection(es):
-    """Check Elasticsearch connection."""
+def check_api_connection(api_url):
+    """Check API connection."""
     try:
-        info = es.info()
-        logger.info(
-            f"Connected to Elasticsearch {info.get('version', {}).get('number', 'unknown')}"
-        )
-        return True
-    except ConnectionError as e:
-        logger.error(f"Failed to connect to Elasticsearch: {e}")
-        return False
-
-
-def create_index(es, index_name="articles"):
-    """Create articles index with mapping."""
-    try:
-        if es.indices.exists(index=index_name):
-            logger.info(f"Index {index_name} already exists")
+        response = requests.get(f"{api_url}/health")
+        if response.status_code == 200:
+            logger.info("Connected to API successfully")
             return True
-
-        mapping = {
-            "mappings": {
-                "properties": {
-                    "author": {"type": "text"},
-                    "article_title": {"type": "text"},
-                    "article": {"type": "text"},
-                    "published": {"type": "date"},
-                    "url": {"type": "keyword"},
-                    "topics": {"type": "text"},
-                    "source_section": {"type": "keyword"},
-                    "content_length": {"type": "integer"},
-                    "word_count": {"type": "integer"},
-                    "ingested_at": {"type": "date"},
-                    "source_file": {"type": "keyword"},
-                }
-            },
-            "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-        }
-
-        es.indices.create(index=index_name, body=mapping)
-        logger.info(f"Created index: {index_name}")
-        return True
-
+        else:
+            logger.error(f"API health check failed: {response.status_code}")
+            return False
     except Exception as e:
-        logger.error(f"Failed to create index: {e}")
+        logger.error(f"Failed to connect to API: {e}")
         return False
 
 
@@ -140,22 +108,38 @@ def clean_article(row):
         return None
 
 
-def check_existing_urls(es, index_name, urls):
-    """Check which URLs already exist in the index."""
-    try:
-        # Create a query to check for existing URLs
-        query = {"query": {"terms": {"url": urls}}, "_source": ["url"]}
+def generate_article_id(article_title):
+    """Generate a hash-based ID from the article title."""
+    return hashlib.md5(article_title.encode('utf-8')).hexdigest()
 
-        response = es.search(index=index_name, body=query, size=10000)
-        existing_urls = {hit["_source"]["url"] for hit in response["hits"]["hits"]}
-        return existing_urls
+
+def check_existing_articles(api_url, article_titles):
+    """Check which articles already exist in the index by title."""
+    try:
+        existing_titles = set()
+        for title in article_titles:
+            # Search for articles with this title
+            response = requests.get(
+                f"{api_url}/articles/search",
+                params={"q": title, "limit": 1}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if data["articles"]:
+                    # Check if any article has the exact same title
+                    for article in data["articles"]:
+                        if article.get("article_title") == title:
+                            existing_titles.add(title)
+                            break
+
+        return existing_titles
     except Exception as e:
-        logger.error(f"Error checking existing URLs: {e}")
+        logger.error(f"Error checking existing articles: {e}")
         return set()
 
 
-def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
-    """Ingest articles from CSV file."""
+def ingest_csv(api_url, csv_path, batch_size=100):
+    """Ingest articles from CSV file using the API."""
     try:
         logger.info(f"Reading {csv_path}")
         df = pd.read_csv(csv_path)
@@ -163,63 +147,58 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
 
         logger.info(f"Found {len(df)} articles")
 
-        # Check for existing URLs to prevent duplicates
-        urls = df["url"].dropna().tolist()
-        existing_urls = check_existing_urls(es, index_name, urls)
-        logger.info(f"Found {len(existing_urls)} existing URLs, will skip duplicates")
+        # Check for existing articles to prevent duplicates
+        titles = df["article_title"].dropna().tolist()
+        existing_titles = check_existing_articles(api_url, titles)
+        logger.info(f"Found {len(existing_titles)} existing articles, will skip duplicates")
 
         total_ingested = 0
         for i in range(0, len(df), batch_size):
             batch = df.iloc[i : i + batch_size]
 
-            actions = []
+            articles_to_ingest = []
             for _, row in batch.iterrows():
                 article = clean_article(row)
-                if article and article["url"] not in existing_urls:
-                    # Use URL as document ID to prevent duplicates
-                    actions.append(
-                        {
-                            "_index": index_name,
-                            "_id": article["url"],  # Use URL as document ID
-                            "_source": article,
-                        }
-                    )
+                if article and article["article_title"] not in existing_titles:
+                    articles_to_ingest.append(article)
 
-            if actions:
+            if articles_to_ingest:
                 try:
-                    # Use bulk with detailed error reporting
-                    success, errors = helpers.bulk(
-                        es, actions, stats_only=False, raise_on_error=False
-                    )
-                    total_ingested += success
-                    logger.info(
-                        f"Batch {i//batch_size + 1}: {success} articles ingested"
+                    # Use bulk API endpoint
+                    response = requests.post(
+                        f"{api_url}/articles/bulk",
+                        json=articles_to_ingest
                     )
 
-                    if errors:
-                        logger.warning(
-                            f"Batch {i//batch_size + 1}: {len(errors)} failed"
+                    if response.status_code == 200:
+                        result = response.json()
+                        total_ingested += result.get("created", 0)
+                        logger.info(
+                            f"Batch {i//batch_size + 1}: {result.get('created', 0)} articles ingested"
                         )
-                        for error in errors[:5]:  # Log first 5 errors
-                            logger.error(f"Bulk error: {error}")
+
+                        if result.get("errors", 0) > 0:
+                            logger.warning(
+                                f"Batch {i//batch_size + 1}: {result.get('errors', 0)} failed"
+                            )
+                    else:
+                        logger.error(f"Batch {i//batch_size + 1} failed: {response.status_code} - {response.text}")
 
                 except Exception as e:
                     logger.error(f"Batch {i//batch_size + 1} error: {e}")
                     # Try individual indexing for debugging
-                    for action in actions[:3]:  # Try first 3 actions individually
+                    for article in articles_to_ingest[:3]:  # Try first 3 articles individually
                         try:
-                            es.index(
-                                index=action["_index"],
-                                id=action["_id"],
-                                body=action["_source"],
+                            response = requests.post(
+                                f"{api_url}/articles",
+                                json=article
                             )
-                            logger.info(
-                                f"Individual index success for: {action['_id']}"
-                            )
+                            if response.status_code == 200:
+                                logger.info(f"Individual index success for: {article.get('article_title', 'NO_TITLE')}")
+                            else:
+                                logger.error(f"Individual index failed: {response.status_code} - {response.text}")
                         except Exception as individual_error:
-                            logger.error(
-                                f"Individual index failed for {action['_id']}: {individual_error}"
-                            )
+                            logger.error(f"Individual index failed: {individual_error}")
                     continue
 
         logger.info(f"Ingested {total_ingested} articles from {csv_path}")
@@ -230,42 +209,47 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
         return 0
 
 
+def has_date_in_filename(filename):
+    """Check if filename contains a year-month-day datestamp."""
+    # Pattern to match YYYY-MM-DD format in filename
+    date_pattern = r'\d{4}-\d{2}-\d{2}'
+    return bool(re.search(date_pattern, filename))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Ingest articles to Elasticsearch")
-    parser.add_argument("--host", default="localhost", help="Elasticsearch host")
-    parser.add_argument("--port", type=int, default=9200, help="Elasticsearch port")
-    parser.add_argument("--index", default="articles", help="Index name")
+    parser = argparse.ArgumentParser(description="Ingest articles using the API")
+    parser.add_argument("--api-url", default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL")
     parser.add_argument("--output-dir", default="/data", help="Output directory")
     parser.add_argument("--batch-size", type=int, default=100, help="Batch size")
 
     args = parser.parse_args()
 
-    # Connect to Elasticsearch
-    es = Elasticsearch([f"http://{args.host}:{args.port}"])
-
-    if not check_connection(es):
+    # Check API connection
+    if not check_api_connection(args.api_url):
         sys.exit(1)
 
-    # Create index
-    if not create_index(es, args.index):
-        sys.exit(1)
-
-    # Find CSV files
+    # Find CSV files with date in filename
     output_path = os.path.join(args.output_dir)
     if not os.path.exists(output_path):
         logger.error(f"Output directory does not exist: {output_path}")
         sys.exit(1)
 
-    csv_files = [f for f in os.listdir(output_path) if f.endswith(".csv")]
-    if not csv_files:
-        logger.warning(f"No CSV files found in {output_path}")
+    all_csv_files = [f for f in os.listdir(output_path) if f.endswith(".csv")]
+    csv_files_with_date = [f for f in all_csv_files if has_date_in_filename(f)]
+
+    logger.info(f"Found {len(all_csv_files)} total CSV files")
+    logger.info(f"Found {len(csv_files_with_date)} CSV files with date in filename")
+
+    if not csv_files_with_date:
+        logger.warning(f"No CSV files with date found in {output_path}")
         return
 
-    # Ingest all CSV files
+    # Ingest CSV files with date in filename
     total_ingested = 0
-    for csv_file in csv_files:
+    for csv_file in csv_files_with_date:
         csv_path = os.path.join(output_path, csv_file)
-        ingested = ingest_csv(es, csv_path, args.index, args.batch_size)
+        logger.info(f"Processing file with date: {csv_file}")
+        ingested = ingest_csv(args.api_url, csv_path, args.batch_size)
         total_ingested += ingested
 
     logger.info(f"Total articles ingested: {total_ingested}")

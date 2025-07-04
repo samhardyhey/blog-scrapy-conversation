@@ -5,9 +5,8 @@
 
 set -e
 
-# Default values
-ELASTICSEARCH_HOST="elasticsearch"
-ELASTICSEARCH_PORT="9200"
+# Use environment variables with defaults
+API_URL="${API_URL:-http://localhost:8000}"
 OUTPUT_DIR="/data"
 
 echo "📥 Running ingestion..."
@@ -17,8 +16,7 @@ cd /app
 
 # Run the Python ingestion script
 python /app/scripts/ingest.py \
-    --host "$ELASTICSEARCH_HOST" \
-    --port "$ELASTICSEARCH_PORT" \
+    --api-url "$API_URL" \
     --output-dir "$OUTPUT_DIR"
 
 echo "✅ Ingestion completed"
