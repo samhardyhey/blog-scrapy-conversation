@@ -68,12 +68,20 @@ COOKIES_ENABLED = False
 
 # CSV Export Settings
 FEEDS = {
-    '/data/conversation_articles_%(time)s.csv': {
-        'format': 'csv',
-        'encoding': 'utf8',
-        'store_empty': False,
-        'fields': ['author', 'article_title', 'article', 'published', 'url', 'topics', 'source_section'],
-        'overwrite': True,
+    "/data/conversation_articles_%(time)s.csv": {
+        "format": "csv",
+        "encoding": "utf8",
+        "store_empty": False,
+        "fields": [
+            "author",
+            "article_title",
+            "article",
+            "published",
+            "url",
+            "topics",
+            "source_section",
+        ],
+        "overwrite": True,
     }
 }
 

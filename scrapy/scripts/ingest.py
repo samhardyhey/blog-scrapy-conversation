@@ -5,7 +5,6 @@ Ingests articles from CSV files to Elasticsearch
 """
 
 import argparse
-import logging
 import os
 import sys
 from datetime import datetime
@@ -86,7 +85,7 @@ def clean_article(row):
                     # Convert string date to ISO format
                     try:
                         # Try to parse the date string
-                        if ' ' in published:
+                        if " " in published:
                             # Format like "2025-07-03 15:00:00"
                             dt = datetime.strptime(published, "%Y-%m-%d %H:%M:%S")
                         else:
@@ -101,7 +100,9 @@ def clean_article(row):
                     # If it's already a datetime object
                     article["published"] = published.isoformat()
             except Exception as e:
-                logger.warning(f"Failed to parse date '{published}' for URL {article.get('url', 'NO_URL')}: {e}")
+                logger.warning(
+                    f"Failed to parse date '{published}' for URL {article.get('url', 'NO_URL')}: {e}"
+                )
                 article["published"] = None
         else:
             article["published"] = None
@@ -109,7 +110,9 @@ def clean_article(row):
         # Truncate very long articles to prevent indexing issues
         max_article_length = 10000  # Limit to 10k characters
         if len(article["article"]) > max_article_length:
-            article["article"] = article["article"][:max_article_length] + "... [truncated]"
+            article["article"] = (
+                article["article"][:max_article_length] + "... [truncated]"
+            )
             logger.warning(f"Truncated article for URL: {article['url']}")
 
         # Calculate metrics
@@ -125,7 +128,9 @@ def clean_article(row):
 
         # Validate required fields
         if not article["url"] or not article["article_title"]:
-            logger.warning(f"Skipping article with missing URL or title: {article.get('url', 'NO_URL')}")
+            logger.warning(
+                f"Skipping article with missing URL or title: {article.get('url', 'NO_URL')}"
+            )
             return None
 
         return article
@@ -139,15 +144,8 @@ def check_existing_urls(es, index_name, urls):
     """Check which URLs already exist in the index."""
     try:
         # Create a query to check for existing URLs
-        query = {
-            "query": {
-                "terms": {
-                    "url": urls
-                }
-            },
-            "_source": ["url"]
-        }
-        
+        query = {"query": {"terms": {"url": urls}}, "_source": ["url"]}
+
         response = es.search(index=index_name, body=query, size=10000)
         existing_urls = {hit["_source"]["url"] for hit in response["hits"]["hits"]}
         return existing_urls
@@ -179,21 +177,29 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
                 article = clean_article(row)
                 if article and article["url"] not in existing_urls:
                     # Use URL as document ID to prevent duplicates
-                    actions.append({
-                        "_index": index_name,
-                        "_id": article["url"],  # Use URL as document ID
-                        "_source": article
-                    })
+                    actions.append(
+                        {
+                            "_index": index_name,
+                            "_id": article["url"],  # Use URL as document ID
+                            "_source": article,
+                        }
+                    )
 
             if actions:
                 try:
                     # Use bulk with detailed error reporting
-                    success, errors = helpers.bulk(es, actions, stats_only=False, raise_on_error=False)
+                    success, errors = helpers.bulk(
+                        es, actions, stats_only=False, raise_on_error=False
+                    )
                     total_ingested += success
-                    logger.info(f"Batch {i//batch_size + 1}: {success} articles ingested")
+                    logger.info(
+                        f"Batch {i//batch_size + 1}: {success} articles ingested"
+                    )
 
                     if errors:
-                        logger.warning(f"Batch {i//batch_size + 1}: {len(errors)} failed")
+                        logger.warning(
+                            f"Batch {i//batch_size + 1}: {len(errors)} failed"
+                        )
                         for error in errors[:5]:  # Log first 5 errors
                             logger.error(f"Bulk error: {error}")
 
@@ -202,10 +208,18 @@ def ingest_csv(es, csv_path, index_name="articles", batch_size=100):
                     # Try individual indexing for debugging
                     for action in actions[:3]:  # Try first 3 actions individually
                         try:
-                            es.index(index=action["_index"], id=action["_id"], body=action["_source"])
-                            logger.info(f"Individual index success for: {action['_id']}")
+                            es.index(
+                                index=action["_index"],
+                                id=action["_id"],
+                                body=action["_source"],
+                            )
+                            logger.info(
+                                f"Individual index success for: {action['_id']}"
+                            )
                         except Exception as individual_error:
-                            logger.error(f"Individual index failed for {action['_id']}: {individual_error}")
+                            logger.error(
+                                f"Individual index failed for {action['_id']}: {individual_error}"
+                            )
                     continue
 
         logger.info(f"Ingested {total_ingested} articles from {csv_path}")
