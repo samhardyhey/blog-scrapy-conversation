@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """
-API Ingestion Script
-Ingests articles from CSV files using the API
+Blog Scraper CLI
+A Typer CLI application for managing articles
 """
 
-import argparse
 import hashlib
 import os
 import re
 import sys
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import requests
+import typer
 from loguru import logger
 
+app = typer.Typer(help="Blog Scraper CLI for managing articles")
 
-def check_api_connection(api_url):
+
+def check_api_connection(api_url: str) -> bool:
     """Check API connection."""
     try:
         response = requests.get(f"{api_url}/health")
@@ -108,73 +111,54 @@ def clean_article(row):
         return None
 
 
-def generate_article_id(article_title):
-    """Generate a hash-based ID from the article title."""
-    return hashlib.md5(article_title.encode('utf-8')).hexdigest()
+def has_date_in_filename(filename: str) -> bool:
+    """Check if filename contains a year-month-day datestamp."""
+    # Pattern to match YYYY-MM-DD format in filename
+    date_pattern = r'\d{4}-\d{2}-\d{2}'
+    return bool(re.search(date_pattern, filename))
 
 
-def check_existing_articles(api_url, article_titles):
-    """Check which articles already exist in the index by title."""
-    try:
-        existing_titles = set()
-        for title in article_titles:
-            # Search for articles with this title
-            response = requests.get(
-                f"{api_url}/articles/search",
-                params={"q": title, "limit": 1}
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if data["articles"]:
-                    # Check if any article has the exact same title
-                    for article in data["articles"]:
-                        if article.get("article_title") == title:
-                            existing_titles.add(title)
-                            break
-
-        return existing_titles
-    except Exception as e:
-        logger.error(f"Error checking existing articles: {e}")
-        return set()
-
-
-def ingest_csv(api_url, csv_path, batch_size=100):
+def ingest_csv(api_url: str, csv_path: str, batch_size: int = 100) -> int:
     """Ingest articles from CSV file using the API."""
     try:
         logger.info(f"Reading {csv_path}")
         df = pd.read_csv(csv_path)
         df["_source_file"] = os.path.basename(csv_path)
-
         logger.info(f"Found {len(df)} articles")
 
-        # Check for existing articles to prevent duplicates
-        titles = df["article_title"].dropna().tolist()
-        existing_titles = check_existing_articles(api_url, titles)
-        logger.info(f"Found {len(existing_titles)} existing articles, will skip duplicates")
+        # drop duplicates
+        df = df.drop_duplicates(subset=["article_title"])
+        logger.info(f"Dropped duplicates, now {len(df)} articles")
 
-        total_ingested = 0
+        total_processed = 0
+        total_created = 0
+        total_updated = 0
+
         for i in range(0, len(df), batch_size):
             batch = df.iloc[i : i + batch_size]
 
-            articles_to_ingest = []
+            articles_to_process = []
             for _, row in batch.iterrows():
                 article = clean_article(row)
-                if article and article["article_title"] not in existing_titles:
-                    articles_to_ingest.append(article)
+                if article:
+                    articles_to_process.append(article)
 
-            if articles_to_ingest:
+            if articles_to_process:
                 try:
-                    # Use bulk API endpoint
+                    # Use bulk-upsert API endpoint
                     response = requests.post(
-                        f"{api_url}/articles/bulk",
-                        json=articles_to_ingest
+                        f"{api_url}/articles/bulk-upsert",
+                        json=articles_to_process
                     )
 
                     if response.status_code == 200:
                         result = response.json()
-                        total_ingested += result.get("created", 0)
+                        total_created += result.get("created", 0)
+                        total_updated += result.get("updated", 0)
+                        total_processed += len(articles_to_process)
+
                         logger.info(
-                            f"Batch {i//batch_size + 1}: {result.get('created', 0)} articles ingested"
+                            f"Batch {i//batch_size + 1}: {result.get('created', 0)} created, {result.get('updated', 0)} updated"
                         )
 
                         if result.get("errors", 0) > 0:
@@ -186,53 +170,55 @@ def ingest_csv(api_url, csv_path, batch_size=100):
 
                 except Exception as e:
                     logger.error(f"Batch {i//batch_size + 1} error: {e}")
-                    # Try individual indexing for debugging
-                    for article in articles_to_ingest[:3]:  # Try first 3 articles individually
+                    # Try individual upsert for debugging
+                    for article in articles_to_process[:3]:  # Try first 3 articles individually
                         try:
                             response = requests.post(
-                                f"{api_url}/articles",
+                                f"{api_url}/articles/upsert",
                                 json=article
                             )
                             if response.status_code == 200:
-                                logger.info(f"Individual index success for: {article.get('article_title', 'NO_TITLE')}")
+                                result = response.json()
+                                logger.info(f"Individual upsert success for: {article.get('article_title', 'NO_TITLE')} - {result.get('action')}")
                             else:
-                                logger.error(f"Individual index failed: {response.status_code} - {response.text}")
+                                logger.error(f"Individual upsert failed: {response.status_code} - {response.text}")
                         except Exception as individual_error:
-                            logger.error(f"Individual index failed: {individual_error}")
+                            logger.error(f"Individual upsert failed: {individual_error}")
                     continue
 
-        logger.info(f"Ingested {total_ingested} articles from {csv_path}")
-        return total_ingested
+        logger.info(f"Processed {total_processed} articles from {csv_path} ({total_created} created, {total_updated} updated)")
+        return total_processed
 
     except Exception as e:
         logger.error(f"Error ingesting {csv_path}: {e}")
         return 0
 
 
-def has_date_in_filename(filename):
-    """Check if filename contains a year-month-day datestamp."""
-    # Pattern to match YYYY-MM-DD format in filename
-    date_pattern = r'\d{4}-\d{2}-\d{2}'
-    return bool(re.search(date_pattern, filename))
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Ingest articles using the API")
-    parser.add_argument("--api-url", default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL")
-    parser.add_argument("--output-dir", default="/data", help="Output directory")
-    parser.add_argument("--batch-size", type=int, default=100, help="Batch size")
-
-    args = parser.parse_args()
-
+@app.command()
+def ingest(
+    api_url: str = typer.Option(
+        default=os.getenv("API_URL", "http://localhost:8000"),
+        help="API base URL"
+    ),
+    output_dir: str = typer.Option(
+        default="/data",
+        help="Output directory containing CSV files"
+    ),
+    batch_size: int = typer.Option(
+        default=100,
+        help="Batch size for processing"
+    ),
+):
+    """Ingest articles from CSV files with date in filename."""
     # Check API connection
-    if not check_api_connection(args.api_url):
-        sys.exit(1)
+    if not check_api_connection(api_url):
+        raise typer.Exit(1)
 
     # Find CSV files with date in filename
-    output_path = os.path.join(args.output_dir)
+    output_path = os.path.join(output_dir)
     if not os.path.exists(output_path):
         logger.error(f"Output directory does not exist: {output_path}")
-        sys.exit(1)
+        raise typer.Exit(1)
 
     all_csv_files = [f for f in os.listdir(output_path) if f.endswith(".csv")]
     csv_files_with_date = [f for f in all_csv_files if has_date_in_filename(f)]
@@ -244,16 +230,91 @@ def main():
         logger.warning(f"No CSV files with date found in {output_path}")
         return
 
-    # Ingest CSV files with date in filename
-    total_ingested = 0
+    # Process CSV files with date in filename
+    total_processed = 0
     for csv_file in csv_files_with_date:
         csv_path = os.path.join(output_path, csv_file)
         logger.info(f"Processing file with date: {csv_file}")
-        ingested = ingest_csv(args.api_url, csv_path, args.batch_size)
-        total_ingested += ingested
+        processed = ingest_csv(api_url, csv_path, batch_size)
+        total_processed += processed
 
-    logger.info(f"Total articles ingested: {total_ingested}")
+    logger.info(f"Total articles processed: {total_processed}")
+
+
+@app.command()
+def delete_all(
+    api_url: str = typer.Option(
+        default=os.getenv("API_URL", "http://localhost:8000"),
+        help="API base URL"
+    ),
+    confirm: bool = typer.Option(
+        default=False,
+        help="Confirm deletion without prompting"
+    ),
+):
+    """Delete all articles from the index."""
+    # Check API connection
+    if not check_api_connection(api_url):
+        raise typer.Exit(1)
+
+    # Get all articles to delete
+    try:
+        logger.info("Fetching all articles...")
+        response = requests.get(f"{api_url}/articles", params={"limit": 10000})
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch articles: {response.status_code}")
+            raise typer.Exit(1)
+
+        data = response.json()
+        articles = data.get("articles", [])
+        total_articles = data.get("total", 0)
+
+        if total_articles == 0:
+            logger.info("No articles found to delete")
+            return
+
+        logger.info(f"Found {total_articles} articles to delete")
+
+        # Confirm deletion
+        if not confirm:
+            if not typer.confirm(f"Are you sure you want to delete all {total_articles} articles?"):
+                logger.info("Deletion cancelled")
+                return
+
+        # Delete articles in batches
+        deleted_count = 0
+        batch_size = 100
+
+        for i in range(0, len(articles), batch_size):
+            batch = articles[i:i + batch_size]
+
+            for article in batch:
+                try:
+                    article_id = article.get("id")
+                    if article_id:
+                        delete_response = requests.delete(f"{api_url}/articles/{article_id}")
+                        if delete_response.status_code == 200:
+                            deleted_count += 1
+                            if deleted_count % 10 == 0:  # Log progress every 10 deletions
+                                logger.info(f"Deleted {deleted_count} articles...")
+                        else:
+                            logger.warning(f"Failed to delete article {article_id}: {delete_response.status_code}")
+                except Exception as e:
+                    logger.error(f"Error deleting article: {e}")
+
+            # If we have more articles to fetch, get the next batch
+            if i + batch_size >= len(articles) and deleted_count < total_articles:
+                response = requests.get(f"{api_url}/articles", params={"limit": 10000, "offset": len(articles)})
+                if response.status_code == 200:
+                    data = response.json()
+                    articles.extend(data.get("articles", []))
+
+        logger.info(f"Successfully deleted {deleted_count} articles")
+
+    except Exception as e:
+        logger.error(f"Error during deletion: {e}")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    app()

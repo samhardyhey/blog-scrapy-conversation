@@ -5,3 +5,4 @@ numpy==1.24.3
 elasticsearch==8.11.0
 loguru==0.7.3
 requests==2.31.0
+typer==0.16.0

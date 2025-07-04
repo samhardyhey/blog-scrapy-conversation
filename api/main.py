@@ -469,6 +469,108 @@ async def update_article(article_id: str, article_update: Dict[str, Any]):
         )
 
 
+@app.delete("/articles/{article_id}")
+async def delete_article(article_id: str):
+    """Delete a specific article by ID"""
+    try:
+        response = es.delete(index="articles", id=article_id)
+        return {
+            "id": article_id,
+            "result": response["result"],
+            "message": "Article deleted successfully",
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=404, detail=f"Article not found or delete failed: {str(e)}"
+        )
+
+
+@app.post("/articles/upsert")
+async def upsert_article(article: Dict[str, Any]):
+    """Create or update an article based on its title hash"""
+    try:
+        # Generate hash-based ID from article title
+        import hashlib
+        article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+
+        # Check if article exists
+        try:
+            existing = es.get(index="articles", id=article_id)
+            # Article exists, update it
+            response = es.update(
+                index="articles",
+                id=article_id,
+                body={"doc": article}
+            )
+            return {
+                "id": article_id,
+                "result": response["result"],
+                "message": "Article updated successfully",
+                "action": "updated"
+            }
+        except:
+            # Article doesn't exist, create it
+            response = es.index(index="articles", id=article_id, body=article)
+            return {
+                "id": article_id,
+                "result": response["result"],
+                "message": "Article created successfully",
+                "action": "created"
+            }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Upsert operation failed: {str(e)}"
+        )
+
+
+@app.post("/articles/bulk-upsert")
+async def bulk_upsert_articles(articles: List[Dict[str, Any]]):
+    """Create or update multiple articles in bulk"""
+    try:
+        if not articles:
+            raise HTTPException(status_code=400, detail="No articles provided")
+
+        bulk_data = []
+        for article in articles:
+            # Generate hash-based ID from article title
+            import hashlib
+            article_id = hashlib.md5(article["article_title"].encode('utf-8')).hexdigest()
+            bulk_data.extend([{"index": {"_index": "articles", "_id": article_id}}, article])
+
+        response = es.bulk(body=bulk_data)
+
+        # Count results
+        created = 0
+        updated = 0
+        errors = []
+
+        for item in response["items"]:
+            if "error" in item["index"]:
+                errors.append(item["index"]["error"])
+            elif item["index"]["result"] == "created":
+                created += 1
+            elif item["index"]["result"] == "updated":
+                updated += 1
+
+        if errors:
+            return {
+                "status": "partial_success",
+                "created": created,
+                "updated": updated,
+                "errors": len(errors),
+                "error_details": errors[:5],  # Limit error details to first 5
+            }
+
+        return {
+            "status": "success",
+            "created": created,
+            "updated": updated,
+            "message": f"Successfully processed {len(articles)} articles ({created} created, {updated} updated)",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk upsert operation failed: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
 
