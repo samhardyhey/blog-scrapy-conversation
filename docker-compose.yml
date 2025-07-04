@@ -1,5 +1,11 @@
 version: '3.8'
 
+# Environment variables with defaults
+x-common-env: &common-env
+  ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:-elasticsearch}
+  ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+  ENV: ${ENV:-development}
+
 services:
   # Elasticsearch container
   elasticsearch:
@@ -10,8 +16,8 @@ services:
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "${ELASTICSEARCH_TRANSPORT_PORT:-9300}:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
@@ -39,8 +45,7 @@ services:
       elasticsearch:
         condition: service_healthy
     environment:
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
+      <<: *common-env
     command: tail -f /dev/null  # Keep container running
 
   # API container
@@ -50,7 +55,7 @@ services:
       dockerfile: Dockerfile.api
     container_name: api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./api:/app
       - ./data:/data
@@ -60,8 +65,7 @@ services:
       elasticsearch:
         condition: service_healthy
     environment:
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
+      <<: *common-env
     command: tail -f /dev/null  # Keep container running
 
 volumes:
