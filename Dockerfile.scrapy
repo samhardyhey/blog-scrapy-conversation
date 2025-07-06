@@ -39,5 +39,3 @@ COPY scrapy/cron/crontab /etc/cron.d/scrapy-jobs
 RUN chmod 0644 /etc/cron.d/scrapy-jobs
 RUN crontab /etc/cron.d/scrapy-jobs
 
-# Default command - start CRON and monitor logs
-CMD ["sh", "-c", "service cron start && tail -f /app/logs/cron.log"]

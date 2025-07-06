@@ -204,7 +204,7 @@ def ingest_csv(api_url: str, csv_path: str, batch_size: int = 100) -> int:
 @app.command()
 def ingest(
     api_url: str = typer.Option(
-        default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL"
+        default=os.getenv("API_URL"), help="API base URL"
     ),
     output_dir: str = typer.Option(
         default="/data", help="Output directory containing CSV files"
@@ -246,7 +246,7 @@ def ingest(
 @app.command()
 def delete_all(
     api_url: str = typer.Option(
-        default=os.getenv("API_URL", "http://localhost:8000"), help="API base URL"
+        default=os.getenv("API_URL"), help="API base URL"
     ),
     confirm: bool = typer.Option(
         default=False, help="Confirm deletion without prompting"

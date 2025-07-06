@@ -43,3 +43,4 @@ python api/main.py
 - unit tests/test suite
 - CI/CD
 - terraform/aws K8s
+- writeup
