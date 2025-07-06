@@ -250,7 +250,12 @@ async def upsert_article(
         try:
             existing = es.get(index="articles", id=article_id)
             # Article exists, update it
-            response = es.update(index="articles", id=article_id, body={"doc": article}, refresh="wait_for")
+            response = es.update(
+                index="articles",
+                id=article_id,
+                body={"doc": article},
+                refresh="wait_for",
+            )
             return {
                 "id": article_id,
                 "result": response["result"],
@@ -259,7 +264,9 @@ async def upsert_article(
             }
         except:
             # Article doesn't exist, create it
-            response = es.index(index="articles", id=article_id, body=article, refresh="wait_for")
+            response = es.index(
+                index="articles", id=article_id, body=article, refresh="wait_for"
+            )
             return {
                 "id": article_id,
                 "result": response["result"],
@@ -289,7 +296,9 @@ async def bulk_upsert_articles(
         for article in articles:
             # Validate required fields
             if "article_title" not in article:
-                raise HTTPException(status_code=400, detail="article_title is required for all articles")
+                raise HTTPException(
+                    status_code=400, detail="article_title is required for all articles"
+                )
 
             # Generate hash-based ID from article title
             article_id = hashlib.md5(

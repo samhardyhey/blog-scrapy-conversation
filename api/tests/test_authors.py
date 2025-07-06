@@ -1,11 +1,12 @@
-import pytest
 from fastapi.testclient import TestClient
 
 
 class TestAuthors:
     """Test authors-related functionality"""
 
-    def test_get_articles_by_author(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_articles_by_author(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test getting articles by author"""
         # Create articles
         for article in sample_articles:
@@ -23,7 +24,9 @@ class TestAuthors:
         for article in data["articles"]:
             assert article["author"] == "Test Author 1"
 
-    def test_get_articles_by_author_empty(self, client: TestClient, clean_articles_index):
+    def test_get_articles_by_author_empty(
+        self, client: TestClient, clean_articles_index
+    ):
         """Test getting articles by author when no articles exist"""
         response = client.get("/v1/authors/NonexistentAuthor/articles")
         assert response.status_code == 200
@@ -33,7 +36,9 @@ class TestAuthors:
         assert len(data["articles"]) == 0
         assert data["total"] == 0
 
-    def test_get_articles_by_author_with_pagination(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_articles_by_author_with_pagination(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test getting articles by author with pagination"""
         # Create articles
         for article in sample_articles:
@@ -55,7 +60,9 @@ class TestAuthors:
         assert len(data["articles"]) == 1
         assert data["offset"] == 1
 
-    def test_get_articles_by_author_sorted_by_date(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_articles_by_author_sorted_by_date(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test that articles by author are sorted by publication date (descending)"""
         # Create articles
         for article in sample_articles:

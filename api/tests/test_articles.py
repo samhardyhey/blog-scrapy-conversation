@@ -1,12 +1,14 @@
-import pytest
 import hashlib
+
 from fastapi.testclient import TestClient
 
 
 class TestArticleLifecycle:
     """Test the complete article lifecycle: Create, Read, Update, Delete"""
 
-    def test_create_article(self, client: TestClient, clean_articles_index, sample_article):
+    def test_create_article(
+        self, client: TestClient, clean_articles_index, sample_article
+    ):
         """Test creating a new article"""
         response = client.post("/v1/articles/upsert", json=sample_article)
 
@@ -24,7 +26,9 @@ class TestArticleLifecycle:
         assert article_data["article_title"] == sample_article["article_title"]
         assert article_data["author"] == sample_article["author"]
 
-    def test_update_article(self, client: TestClient, clean_articles_index, sample_article):
+    def test_update_article(
+        self, client: TestClient, clean_articles_index, sample_article
+    ):
         """Test updating an existing article"""
         # First create the article
         create_response = client.post("/v1/articles/upsert", json=sample_article)
@@ -51,7 +55,9 @@ class TestArticleLifecycle:
         assert article_data["article"] == updated_article["article"]
         assert article_data["content_length"] == updated_article["content_length"]
 
-    def test_get_article(self, client: TestClient, clean_articles_index, sample_article):
+    def test_get_article(
+        self, client: TestClient, clean_articles_index, sample_article
+    ):
         """Test retrieving a specific article"""
         # Create the article first
         create_response = client.post("/v1/articles/upsert", json=sample_article)
@@ -73,7 +79,9 @@ class TestArticleLifecycle:
         response = client.get(f"/v1/articles/{fake_id}")
         assert response.status_code == 404
 
-    def test_delete_article(self, client: TestClient, clean_articles_index, sample_article):
+    def test_delete_article(
+        self, client: TestClient, clean_articles_index, sample_article
+    ):
         """Test deleting an article"""
         # Create the article first
         create_response = client.post("/v1/articles/upsert", json=sample_article)
@@ -97,7 +105,9 @@ class TestArticleLifecycle:
         response = client.delete(f"/v1/articles/{fake_id}")
         assert response.status_code == 404
 
-    def test_article_id_consistency(self, client: TestClient, clean_articles_index, sample_article):
+    def test_article_id_consistency(
+        self, client: TestClient, clean_articles_index, sample_article
+    ):
         """Test that article IDs are consistent based on title hash"""
         # Create article twice with same title
         response1 = client.post("/v1/articles/upsert", json=sample_article)
@@ -112,7 +122,9 @@ class TestArticleLifecycle:
         assert id1 == id2
 
         # Verify it's the expected hash
-        expected_id = hashlib.md5(sample_article["article_title"].encode("utf-8")).hexdigest()
+        expected_id = hashlib.md5(
+            sample_article["article_title"].encode("utf-8")
+        ).hexdigest()
         assert id1 == expected_id
 
 
@@ -128,7 +140,9 @@ class TestArticleListAndSearch:
         assert data["articles"] == []
         assert data["total"] == 0
 
-    def test_get_articles_with_data(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_articles_with_data(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test getting articles when data exists"""
         # Create multiple articles
         for article in sample_articles:
@@ -141,7 +155,9 @@ class TestArticleListAndSearch:
         assert len(data["articles"]) == 3
         assert data["total"] == 3
 
-    def test_get_articles_with_pagination(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_articles_with_pagination(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test article pagination"""
         # Create multiple articles
         for article in sample_articles:
@@ -163,7 +179,9 @@ class TestArticleListAndSearch:
         assert len(data["articles"]) == 1
         assert data["offset"] == 1
 
-    def test_search_articles(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_search_articles(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test article search functionality"""
         # Create articles
         for article in sample_articles:
@@ -190,14 +208,18 @@ class TestArticleListAndSearch:
         data = response.json()
         assert len(data["articles"]) > 0
 
-    def test_search_articles_with_date_range(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_search_articles_with_date_range(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test article search with date filtering"""
         # Create articles
         for article in sample_articles:
             client.post("/v1/articles/upsert", json=article)
 
         # Search with date range
-        response = client.get("/v1/articles/search?date_from=2025-01-15&date_to=2025-01-16")
+        response = client.get(
+            "/v1/articles/search?date_from=2025-01-15&date_to=2025-01-16"
+        )
         assert response.status_code == 200
 
         data = response.json()
@@ -207,7 +229,9 @@ class TestArticleListAndSearch:
 class TestBulkOperations:
     """Test bulk article operations"""
 
-    def test_bulk_upsert_articles(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_bulk_upsert_articles(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test bulk upserting multiple articles"""
         response = client.post("/v1/articles/bulk-upsert", json=sample_articles)
         assert response.status_code == 200
@@ -230,7 +254,9 @@ class TestBulkOperations:
         data = response.json()
         assert "No articles provided" in data["detail"]
 
-    def test_bulk_upsert_mixed_operations(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_bulk_upsert_mixed_operations(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test bulk upsert with some new and some existing articles"""
         # Create first article
         client.post("/v1/articles/upsert", json=sample_articles[0])
@@ -248,7 +274,9 @@ class TestBulkOperations:
 class TestRelatedArticles:
     """Test related articles functionality"""
 
-    def test_get_related_articles(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_related_articles(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test finding related articles"""
         # Create articles
         for article in sample_articles:
@@ -266,7 +294,9 @@ class TestRelatedArticles:
         assert data["article_id"] == first_article_id
         assert len(data["related_articles"]) > 0
 
-    def test_get_related_articles_not_found(self, client: TestClient, clean_articles_index):
+    def test_get_related_articles_not_found(
+        self, client: TestClient, clean_articles_index
+    ):
         """Test getting related articles for non-existent article"""
         fake_id = "nonexistent123"
         response = client.get(f"/v1/articles/{fake_id}/related")
@@ -276,7 +306,9 @@ class TestRelatedArticles:
 class TestArticleTimeline:
     """Test article timeline functionality"""
 
-    def test_get_publication_timeline(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_publication_timeline(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test getting publication timeline"""
         # Create articles
         for article in sample_articles:
@@ -289,7 +321,9 @@ class TestArticleTimeline:
         assert "timeline" in data
         assert len(data["timeline"]) > 0
 
-    def test_get_publication_timeline_with_filter(self, client: TestClient, clean_articles_index, sample_articles):
+    def test_get_publication_timeline_with_filter(
+        self, client: TestClient, clean_articles_index, sample_articles
+    ):
         """Test getting publication timeline with source section filter"""
         # Create articles
         for article in sample_articles:

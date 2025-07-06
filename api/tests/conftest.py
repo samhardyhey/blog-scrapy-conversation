@@ -1,9 +1,9 @@
-import pytest
-from fastapi.testclient import TestClient
-from elasticsearch import Elasticsearch
 import os
 import time
 
+import pytest
+from elasticsearch import Elasticsearch
+from fastapi.testclient import TestClient
 from main import app
 
 
@@ -53,19 +53,19 @@ def clean_articles_index(es_client):
                     "article": {"type": "text"},
                     "author": {
                         "type": "text",
-                        "fields": {"keyword": {"type": "keyword"}}
+                        "fields": {"keyword": {"type": "keyword"}},
                     },
                     "published": {"type": "date"},
                     "url": {"type": "keyword"},
                     "topics": {
                         "type": "text",
-                        "fields": {"keyword": {"type": "keyword"}}
+                        "fields": {"keyword": {"type": "keyword"}},
                     },
                     "source_section": {"type": "keyword"},
-                    "content_length": {"type": "long"}
+                    "content_length": {"type": "long"},
                 }
             }
-        }
+        },
     )
 
     # Wait for index to be ready
@@ -91,7 +91,7 @@ def sample_article():
         "url": "https://example.com/test-article",
         "topics": "Testing|API|Development",
         "source_section": "technology",
-        "content_length": 50
+        "content_length": 50,
     }
 
 
@@ -107,7 +107,7 @@ def sample_articles():
             "url": "https://example.com/first-article",
             "topics": "Testing|API",
             "source_section": "technology",
-            "content_length": 40
+            "content_length": 40,
         },
         {
             "article_title": "Second Test Article",
@@ -117,7 +117,7 @@ def sample_articles():
             "url": "https://example.com/second-article",
             "topics": "Development|Testing",
             "source_section": "science",
-            "content_length": 45
+            "content_length": 45,
         },
         {
             "article_title": "Third Test Article",
@@ -127,6 +127,6 @@ def sample_articles():
             "url": "https://example.com/third-article",
             "topics": "API|Development",
             "source_section": "technology",
-            "content_length": 42
-        }
+            "content_length": 42,
+        },
     ]
