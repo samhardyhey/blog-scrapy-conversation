@@ -110,6 +110,9 @@ async def search_articles(
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
+
+
+
 @router.get("/{article_id}")
 async def get_article(
     article_id: str, es: Elasticsearch = Depends(get_elasticsearch_client)
@@ -174,7 +177,7 @@ async def delete_article(
 ):
     """Delete a specific article by ID"""
     try:
-        response = es.delete(index="articles", id=article_id)
+        response = es.delete(index="articles", id=article_id, refresh="wait_for")
         return {
             "id": article_id,
             "result": response["result"],
@@ -192,6 +195,10 @@ async def upsert_article(
 ):
     """Create or update an article based on its title hash"""
     try:
+        # Validate required fields
+        if "article_title" not in article:
+            raise HTTPException(status_code=400, detail="article_title is required")
+
         # Generate hash-based ID from article title
         article_id = hashlib.md5(article["article_title"].encode("utf-8")).hexdigest()
 
@@ -199,7 +206,7 @@ async def upsert_article(
         try:
             existing = es.get(index="articles", id=article_id)
             # Article exists, update it
-            response = es.update(index="articles", id=article_id, body={"doc": article})
+            response = es.update(index="articles", id=article_id, body={"doc": article}, refresh="wait_for")
             return {
                 "id": article_id,
                 "result": response["result"],
@@ -208,13 +215,16 @@ async def upsert_article(
             }
         except:
             # Article doesn't exist, create it
-            response = es.index(index="articles", id=article_id, body=article)
+            response = es.index(index="articles", id=article_id, body=article, refresh="wait_for")
             return {
                 "id": article_id,
                 "result": response["result"],
                 "message": "Article created successfully",
                 "action": "created",
             }
+    except HTTPException:
+        # Re-raise HTTPExceptions
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Upsert operation failed: {str(e)}"
@@ -233,6 +243,10 @@ async def bulk_upsert_articles(
 
         bulk_data = []
         for article in articles:
+            # Validate required fields
+            if "article_title" not in article:
+                raise HTTPException(status_code=400, detail="article_title is required for all articles")
+
             # Generate hash-based ID from article title
             article_id = hashlib.md5(
                 article["article_title"].encode("utf-8")
@@ -241,7 +255,7 @@ async def bulk_upsert_articles(
                 [{"index": {"_index": "articles", "_id": article_id}}, article]
             )
 
-        response = es.bulk(body=bulk_data)
+        response = es.bulk(body=bulk_data, refresh="wait_for")
 
         # Count results
         created = 0
@@ -271,6 +285,9 @@ async def bulk_upsert_articles(
             "updated": updated,
             "message": f"Successfully processed {len(articles)} articles ({created} created, {updated} updated)",
         }
+    except HTTPException:
+        # Re-raise HTTPExceptions (like the 400 for empty list)
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Bulk upsert operation failed: {str(e)}"

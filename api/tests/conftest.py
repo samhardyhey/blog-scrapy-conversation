@@ -13,7 +13,7 @@ def es_client():
     es_host = os.getenv("ELASTICSEARCH_HOST", "elasticsearch")
     es_port = os.getenv("ELASTICSEARCH_PORT", "9200")
     client = Elasticsearch([f"http://{es_host}:{es_port}"])
-    
+
     # Wait for Elasticsearch to be ready
     max_retries = 30
     for i in range(max_retries):
@@ -24,7 +24,7 @@ def es_client():
             if i == max_retries - 1:
                 raise Exception("Elasticsearch not ready after 30 retries")
             time.sleep(1)
-    
+
     return client
 
 
@@ -42,7 +42,7 @@ def clean_articles_index(es_client):
         es_client.indices.delete(index="articles")
     except:
         pass
-    
+
     # Create fresh index
     es_client.indices.create(
         index="articles",
@@ -61,12 +61,12 @@ def clean_articles_index(es_client):
             }
         }
     )
-    
+
     # Wait for index to be ready
     es_client.indices.refresh(index="articles")
-    
+
     yield
-    
+
     # Clean up after test
     try:
         es_client.indices.delete(index="articles")
@@ -123,4 +123,4 @@ def sample_articles():
             "source_section": "technology",
             "content_length": 42
         }
-    ] 
+    ]
