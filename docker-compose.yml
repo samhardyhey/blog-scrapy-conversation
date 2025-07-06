@@ -68,7 +68,8 @@ services:
     environment:
       <<: *common-env
       API_PORT: ${API_PORT}
-    command: python /app/main.py
+      ENV: development
+    command: tail -f /dev/null
 
 volumes:
   elasticsearch_data:

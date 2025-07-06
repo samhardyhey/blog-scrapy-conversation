@@ -20,3 +20,7 @@ COPY api/ .
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV ENV=development
+
+# Install watchdog for better file watching in Docker
+RUN pip install watchdog[watchmedo]
