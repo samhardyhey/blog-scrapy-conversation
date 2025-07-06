@@ -51,10 +51,16 @@ def clean_articles_index(es_client):
                 "properties": {
                     "article_title": {"type": "text"},
                     "article": {"type": "text"},
-                    "author": {"type": "text"},
+                    "author": {
+                        "type": "text",
+                        "fields": {"keyword": {"type": "keyword"}}
+                    },
                     "published": {"type": "date"},
                     "url": {"type": "keyword"},
-                    "topics": {"type": "text"},
+                    "topics": {
+                        "type": "text",
+                        "fields": {"keyword": {"type": "keyword"}}
+                    },
                     "source_section": {"type": "keyword"},
                     "content_length": {"type": "long"}
                 }

@@ -66,7 +66,7 @@ async def search_articles(
             )
 
         if author:
-            query["bool"]["must"].append({"match": {"author": author}})
+            query["bool"]["must"].append({"term": {"author.keyword": author}})
 
         if topics:
             query["bool"]["must"].append({"match": {"topics": topics}})
@@ -110,7 +110,51 @@ async def search_articles(
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
+@router.get("/timeline")
+async def get_publication_timeline(
+    interval: str = Query(
+        "1d", description="Time interval for aggregation (1d, 1w, 1M, etc.)"
+    ),
+    source_section: Optional[str] = Query(None, description="Filter by source section"),
+    es: Elasticsearch = Depends(get_elasticsearch_client),
+):
+    """Get article publication timeline"""
+    try:
+        query = (
+            {"match_all": {}}
+            if not source_section
+            else {"match": {"source_section": source_section}}
+        )
 
+        response = es.search(
+            index="articles",
+            body={
+                "size": 0,
+                "query": query,
+                "aggs": {
+                    "publications_over_time": {
+                        "date_histogram": {
+                            "field": "published",
+                            "calendar_interval": interval,
+                            "format": "yyyy-MM-dd",
+                        }
+                    }
+                },
+            },
+        )
+
+        return {
+            "timeline": [
+                {"date": bucket["key_as_string"], "count": bucket["doc_count"]}
+                for bucket in response["aggregations"]["publications_over_time"][
+                    "buckets"
+                ]
+            ],
+            "interval": interval,
+            "source_section": source_section,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get timeline: {str(e)}")
 
 
 @router.get("/{article_id}")
@@ -292,50 +336,3 @@ async def bulk_upsert_articles(
         raise HTTPException(
             status_code=500, detail=f"Bulk upsert operation failed: {str(e)}"
         )
-
-
-@router.get("/timeline")
-async def get_publication_timeline(
-    interval: str = Query(
-        "1d", description="Time interval for aggregation (1d, 1w, 1M, etc.)"
-    ),
-    source_section: Optional[str] = Query(None, description="Filter by source section"),
-    es: Elasticsearch = Depends(get_elasticsearch_client),
-):
-    """Get article publication timeline"""
-    try:
-        query = (
-            {"match_all": {}}
-            if not source_section
-            else {"match": {"source_section": source_section}}
-        )
-
-        response = es.search(
-            index="articles",
-            body={
-                "size": 0,
-                "query": query,
-                "aggs": {
-                    "publications_over_time": {
-                        "date_histogram": {
-                            "field": "published",
-                            "calendar_interval": interval,
-                            "format": "yyyy-MM-dd",
-                        }
-                    }
-                },
-            },
-        )
-
-        return {
-            "timeline": [
-                {"date": bucket["key_as_string"], "count": bucket["doc_count"]}
-                for bucket in response["aggregations"]["publications_over_time"][
-                    "buckets"
-                ]
-            ],
-            "interval": interval,
-            "source_section": source_section,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get timeline: {str(e)}")

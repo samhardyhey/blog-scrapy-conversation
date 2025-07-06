@@ -17,7 +17,7 @@ async def get_articles_by_author(
         response = es.search(
             index="articles",
             body={
-                "query": {"match": {"author": author}},
+                "query": {"term": {"author.keyword": author}},
                 "sort": [{"published": {"order": "desc"}}],
                 "size": limit,
                 "from": offset,
