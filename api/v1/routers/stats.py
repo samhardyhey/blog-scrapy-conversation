@@ -29,7 +29,7 @@ async def get_stats(es: Elasticsearch = Depends(get_elasticsearch_client)):
                     },
                     "source_sections": {
                         "terms": {
-                            "field": "source_section.keyword",
+                            "field": "source_section",
                             "size": 20,
                             "order": {"_count": "desc"},
                         }
